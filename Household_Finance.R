@@ -79,13 +79,9 @@ part_df <- merge(part_df,country_codes,by='country') %>%
 wealth_df <- merge(wealth_df,country_codes,by='country') %>%
   relocate(code, .after='country')
 
-# ------------------------- Export Data to XLSX --------------------------------
 
-# If needed as Excel files
-write_xlsx(part_df, "~/CORE R Code/clean_merged_hhparticipation.xlsx")
-write_xlsx(wealth_df, "~/CORE R Code/clean_merged_hhwealth.xlsx")
 
-# ------------------------- First Scatter Plots --------------------------------
+# ------------------------- Raw Data Scatter Plots -----------------------------
 
 part_df <- part_df %>% 
   rename(gdppc = "GDPPC PPP")
@@ -104,16 +100,107 @@ plot_data_column = function (data, column) {
     ggtitle(paste(as.character(column))) +
     labs(x="GDP per capita (PPP)", y="") +
     geom_text(hjust=0.5, vjust=0.5, aes(label=code), size=2) +
-    theme(plot.title=element_text(size=8), axis.title.x=element_text(size=8), ) 
+    theme(plot.title=element_text(size=8), axis.title.x=element_text(size=8)) 
 }
 # Plot participation
-plots_list <- lapply(colnames_part, plot_data_column, data = part_df)
-do.call("grid.arrange", c(plots_list, ncol=5))
+plots_list_part <- lapply(colnames_part, plot_data_column, data = part_df)
+do.call("grid.arrange", c(plots_list_part, ncol=5))
 
 # Plot wealth
-plots_list <- lapply(colnames_wealth, plot_data_column, data = wealth_df)
-do.call("grid.arrange", c(plots_list, ncol=5))
+plots_list_wealth <- lapply(colnames_wealth, plot_data_column, data = wealth_df)
+do.call("grid.arrange", c(plots_list_wealth, ncol=5))
 
+# Export as Excel files
+write_xlsx(part_df, "~/CORE R Code/clean_merged_hhparticipation.xlsx")
+write_xlsx(wealth_df, "~/CORE R Code/clean_merged_hhwealth.xlsx")
 
 # --------------------- Conditional Participation Rates -----------------------
 
+# Rename all variables to be easier to reference
+
+part_df <- part_df %>% # Assets
+  rename(fin_ast = "Financial assets",
+         deposits = "Deposits",
+         ret_ast = "Retirement assetsand life insurance",
+         dir_stock = "Directly held stocks",
+         mutual_funds = "Mutual funds",
+         total_stock = "Total direct and indirect holdings of stocks",
+         bonds = "Bonds",
+         other_ast = "Other assets",
+         nonfin_ast = "Nonfinancial assets",
+         veh_val_other_ast = "Vehicles, valuables, and other assets",
+         main_res = "Main residence",
+         other_realest = "Other real estate",
+         priv_biz = "Private businesses",
+         # Liabilities
+         hh_lib = "Household liabilities",
+         veh_stu_other_debt = "Vehicle loans, student loans, and other debt",
+         credit_cards = "Credit cards",
+         od_creditlines = "Overdrafts and credit lines",
+         prim_mort = "Mortgage debt for primary residence",
+         other_mort = "Other mortgage debt")
+
+wealth_df <- wealth_df %>% # Assets
+   rename(mean_ast = "Mean household assets (thousands of US dollars)",
+         med_ast = "Median household assets (thousands of US dollars)",
+         fin_ast = "Financial assets",
+         deposits = "Deposits",
+         ret_ast = "Retirement assets and life insurance",
+         dir_stock = "Directly held stocks",
+         mutual_funds = "Mutual funds",
+         bonds = "Bonds",
+         other_ast = "Other assets",
+         nonfin_ast = "Nonfinancial assets",
+         veh_val_other_ast = "Vehicles, valuables, and other assets",
+         main_res = "Main residence",
+         other_realest = "Other real estate",
+         priv_biz = "Private businesses",
+         # Liabilities
+         mean_hh_lib = "Mean household liabilities (thousands of US dollars)",
+         med_hh_lib = "Median of positive household liabilities (thousands of US dollars)",
+         veh_stu_other_debt = "Vehicle loans, student loans, and other debt",
+         credit_cards = "Credit cards",
+         od_creditlines = "Overdrafts and credit lines",
+         prim_mort = "Mortgage debt for primary residence",
+         other_sec_realest = "Other debt secured with real estate",
+         mean_net_worth = "Mean household net worth (thousands of US dollars)",
+         med_net_worth = "Median household net worth (thousands US dollars)")
+
+composite_vars <- data.frame(country=wealth_df$country, code=part_df$code) 
+
+# Create composite variables: share(i)/participation(i) for all matching variables
+# Also includes three liability share over asset participation variables
+
+composite_vars <- composite_vars %>% 
+  mutate(cond_financial_assets = wealth_df$fin_ast/part_df$fin_ast,
+         cond_deposits = wealth_df$deposits/part_df$deposits,
+         cond_retirement_assets = wealth_df$ret_ast/part_df$ret_ast,
+         cond_direct_stock = wealth_df$dir_stock/part_df$dir_stock,
+         cond_mutual_funds = wealth_df$mutual_funds/part_df$mutual_funds,
+         cond_bonds = wealth_df$bonds/part_df$bonds,
+         cond_other_assets = wealth_df$other_ast/part_df$other_ast,
+         cond_nonfinancial_assets = wealth_df$nonfin_ast/part_df$nonfin_ast,
+         cond_vehicle_valuable_other_assets = wealth_df$veh_val_other_ast/part_df$veh_val_other_ast,
+         cond_main_residence = wealth_df$main_res/part_df$main_res,
+         cond_other_realestate = wealth_df$other_realest/part_df$other_realest,
+         cond_private_businesses = wealth_df$priv_biz/part_df$priv_biz,
+         cond_vehicle_loans_student_loans_other_debt = wealth_df$veh_stu_other_debt/part_df$veh_stu_other_debt,
+         cond_credit_cars = wealth_df$credit_cards/part_df$credit_cards,
+         cond_overdrafts_creditlines = wealth_df$od_creditlines/part_df$od_creditlines,
+         cond_primary_mortgage = wealth_df$prim_mort/part_df$prim_mort,
+         # Liability share over asset participation
+         mortgage_share_on_main_residence_partcipation = wealth_df$prim_mort/part_df$main_res,
+         other_mortgage_share_on_other_realestate_participation = wealth_df$other_realest/part_df$other_realest,
+         other_loans_share_on_other_assets_participation = wealth_df$veh_stu_other_debt/part_df$veh_val_other_ast)
+
+# Add GDPPC data
+composite_vars <- composite_vars %>%
+  mutate(gdppc = wealth_df$gdppc)
+
+colnames_composite <- names(composite_vars[,3:(ncol(composite_vars)-1)])
+
+plots_list_composite <- lapply(colnames_composite, plot_data_column, data = composite_vars)
+do.call("grid.arrange", c(plots_list_composite, ncol=5))
+
+# Export as Excel file
+write_xlsx(composite_vars, "~/CORE R Code/clean_merged_hhconditionals.xlsx")
